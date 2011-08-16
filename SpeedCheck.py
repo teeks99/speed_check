@@ -6,7 +6,6 @@ Created on Aug 15, 2011
 
 import urllib2
 import time
-import argparse
 import optparse
 import monotonic
 
@@ -89,22 +88,6 @@ def speed_check_info(remote_file, test_seconds, block_size, output_time=0):
     return average, bytes, elapsed, block_size   
     
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser("Check the speed of your connection")
-    parser.add_argument('-u','--url', help="URL of the file to try downloading"+
-        "defaults to http://speedtest.wdc01.softlayer.com/downloads/test500.zip",
-        default="http://speedtest.wdc01.softlayer.com/downloads/test500.zip")
-    parser.add_argument('-t','--time', help="Number of seconds to run the test, default 60",
-        default=60, type=float)
-    parser.add_argument('-m','--message-freq', help="Output message frequency in seconds",
-        default=0, type=float)
-    parser.add_argument('-b','--block',help="Initial block size",default=1024, 
-        type=int)
-    parser.add_argument('-w','--window',help="Block window lenght, default 0.5s", 
-        default=0.5, type=float)
-    parser.add_argument('-a','--append-file',help="File to append this result")
-    parser.add_argument('-r','--no-result',dest="print_result",help="Don't print the result, handy for cron with -a",action="store_false")
-    parser.add_argument('-g','--growth', help="Show block size growth",action="store_true")
-    #args = parser.parse_args()
     parser = optparse.OptionParser()
     parser.add_option('-u','--url', help="URL of the file to try downloading"+
         "defaults to http://speedtest.wdc01.softlayer.com/downloads/test500.zip",
