@@ -6,6 +6,8 @@ Created on Aug 15, 2011
 
 import urllib2
 import time
+import argparse
+import monotonic
 
 def push_block_size(remote_file, block_size, block_window=1.0, telemetry=False):
     """ Grow the blocksize to a suitable value for this connection
@@ -13,19 +15,33 @@ def push_block_size(remote_file, block_size, block_window=1.0, telemetry=False):
     If the block is downloaded in less than block_window seconds, then double it. 
     Repeat until we have two runs in a row that take longer than block_window
     """
-    start = time.time()
+    start = monotonic.monotonic_time()
     previous = start
     last = False
     second = False
+    debug_data = []
+    #prime the pump
+    temp = f.read(block_size)
+    temp = f.read(block_size)
+    temp = f.read(block_size)
     while not last and not second:
         temp = f.read(block_size)
         if len(temp)==0: #We've gotten all the file
             raise IOError("file was to short to complete setup")
-        current = time.time()
-        if(current-previous) < block_window:
+        current = monotonic.monotonic_time()
+        debug_data.append((current-previous, block_size))
+        if(current-previous)*32 < block_window:
+            multiplier = block_window / (current-previous)
+            multiplier = multiplier / 16 # add in some leeway
+            block_size = int(block_size * multiplier)
+            if telemetry:
+                print "increasing block size to: " + str(block_size) + " B"
+            last = False
+            second = False
+        elif(current-previous) < block_window:
             block_size = block_size * 2
             if telemetry:
-                print "doubling block size to: " + str(block_size) + "B"
+                print "doubling block size to: " + str(block_size) + " B"
             last = False
             second = False
         elif last:
@@ -33,6 +49,9 @@ def push_block_size(remote_file, block_size, block_window=1.0, telemetry=False):
         else: 
             last = True
         previous = current
+    debug_data.append((current-previous, block_size))
+    for t,b in debug_data:
+        print t,",",b
     return block_size
 
 def speed_check(remote_file, test_seconds, block_size, output_time=0):
@@ -41,20 +60,20 @@ def speed_check(remote_file, test_seconds, block_size, output_time=0):
     return average
 
 def speed_check_info(remote_file, test_seconds, block_size, output_time=0):
-    start = time.time()
+    start = monotonic.monotonic_time()
     bytes = 0
     previous = start
     last_output = start
 
-    while previous < (start + seconds):
+    while previous < (start + test_seconds):
         temp = f.read(block_size)
         if len(temp)==0: #We've gotten all the file
             break
         bytes += block_size
-        current = time.time()
+        current = monotonic.monotonic_time()
             
         if (current - last_output) > output_time and output_time != 0:
-            print str(bytes/(current-start))
+            print str(bytes/(current-start)) + " KB/s"
             last_output = current
             
         previous = current
@@ -63,23 +82,40 @@ def speed_check_info(remote_file, test_seconds, block_size, output_time=0):
     elapsed = finish-start
     average = bytes / elapsed
    
-    return average, bytes, elapsed, block_size
-
-if __name__ == '__main__':
-    url = "http://speedtest.wdc01.softlayer.com/downloads/test500.zip"
-    seconds = 60
-    block_size = 1024
-    output_time = 5
-    block_window = 0.5
-    append_file = 'log.txt'
+    return average, bytes, elapsed, block_size   
     
-    f = urllib2.urlopen(url)
-    block_size = push_block_size(f, block_size, block_window)
-    average = speed_check(url, seconds, block_size)
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser("Check the speed of your connection")
+    parser.add_argument('-u','--url', help="URL of the file to try downloading"+
+        "defaults to http://speedtest.wdc01.softlayer.com/downloads/test500.zip",
+        default="http://speedtest.wdc01.softlayer.com/downloads/test500.zip")
+    parser.add_argument('-t','--time', help="Number of seconds to run the test, default 60",
+        default=60, type=float)
+    parser.add_argument('-m','--message-freq', help="Output message frequency in seconds",
+        default=0, type=float)
+    parser.add_argument('-b','--block',help="Initial block size",default=1024, 
+        type=int)
+    parser.add_argument('-w','--window',help="Block window lenght, default 0.5s", 
+        default=0.5, type=float)
+    parser.add_argument('-a','--append-file',help="File to append this result")
+    parser.add_argument('-r','--no-result',dest="print_result",help="Don't print the result, handy for cron with -a",action="store_false")
+    parser.add_argument('-g','--growth', help="Show block size growth",action="store_true")
+    parser.add_argument
+    args = parser.parse_args()
+    #print args.url, args.time, args.message_freq, args.block, args.window, args.append_file, args.no_result, args.growth
+    
+    f = urllib2.urlopen(args.url)
+    block_size = push_block_size(f, args.block, args.window, args.growth)
+    average = speed_check(f, args.time, block_size, args.message_freq)
     f.close()
+    
+    if args.print_result: 
+        #print "Average: " + str(average) + " KB/s"
+        print average
      
-    out = open(append_file,'a')
-    out.write(str(average)+'\n')
-    out.close()
+    if args.append_file:
+        out = open(args.append_file,'a')
+        out.write(str(average)+'\n')
+        out.close()
     
     
