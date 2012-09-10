@@ -15,6 +15,8 @@ def push_block_size(remote_file, block_size, block_window=1.0, telemetry=False):
     If the block is downloaded in less than block_window seconds, then double it. 
     Repeat until we have two runs in a row that take longer than block_window
     """
+    f = remote_file
+    
     #prime the pump
     temp = f.read(block_size)
     temp = f.read(block_size)
@@ -67,6 +69,7 @@ def speed_check_info(remote_file, test_seconds, block_size, output_time=0):
     bytes = 0
     previous = start
     last_output = start
+    f = remote_file
 
     while previous < (start + test_seconds):
         temp = f.read(block_size)
